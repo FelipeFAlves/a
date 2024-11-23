@@ -1,6 +1,6 @@
 //Tres registros que serao uteis, Arco, Vertice e Grafo
 typedef struct aresta{
-	int v;
+	int v; // VALUE
 	int tamanho;
 	struct aresta * prox;
 }Aresta;
