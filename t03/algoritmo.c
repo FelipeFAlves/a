@@ -2,129 +2,132 @@
 #include <stdlib.h>
 #include <limits.h>
 #include "grafo.h"
+#include <stdbool.h>
+
+/*
+Pai = (index-1)/2
+Filho esquerdo = 2*index + 1
+Filho direito = 2*index + 2
+*/
 
 typedef struct {
-  int vertex;
-  int priority;
-} PQNode;
+  int id;
+  int prioridade;
+} No;
 
 typedef struct {
-  PQNode *nodes;
-  int size;
-  int capacity;
+  No *nos;
+  int tamanho;   // Número de elementos na fila
+  int capacidade; // Capacidade máxima da fila
 } PriorityQueue;
 
-PriorityQueue* createPriorityQueue(int capacity) {
+// Funções auxiliares
+int indexFilhoEsquerda(int indexPai) { return (indexPai * 2) + 1; }
+int indexFilhoDireita(int indexPai) { return (indexPai * 2) + 2; }
+int indexPai(int index) { return (index - 1) / 2; }
+bool existeFilhoEsquerda(int index, PriorityQueue *q) { return indexFilhoEsquerda(index) < q->tamanho; }
+bool existeFilhoDireita(int index, PriorityQueue *q) { return indexFilhoDireita(index) < q->tamanho; }
+bool existePai(int index) { return indexPai(index) >= 0; }
+No filhoEsquerda(int index, PriorityQueue *q) { return q->nos[indexFilhoEsquerda(index)]; }
+No filhoDireita(int index, PriorityQueue *q) { return q->nos[indexFilhoDireita(index)]; }
+No pai(int index, PriorityQueue *q) { return q->nos[indexPai(index)]; }
+
+void swap(int index1, int index2, PriorityQueue *q) {
+  No aux = q->nos[index1];
+  q->nos[index1] = q->nos[index2];
+  q->nos[index2] = aux;
+}
+
+void heapifyUp(PriorityQueue *q) {
+  int index = q->tamanho - 1;
+  while (existePai(index) && pai(index, q).prioridade > q->nos[index].prioridade) {
+    swap(indexPai(index), index, q);
+    index = indexPai(index);
+  }
+}
+
+void heapifyDown(PriorityQueue *q) {
+  int index = 0;
+  while (existeFilhoEsquerda(index, q)) {
+    int menorFilho = indexFilhoEsquerda(index);
+    if (existeFilhoDireita(index, q) && filhoDireita(index, q).prioridade < filhoEsquerda(index, q).prioridade) {
+      menorFilho = indexFilhoDireita(index);
+    }
+    if (q->nos[index].prioridade < q->nos[menorFilho].prioridade) break;
+    swap(index, menorFilho, q);
+    index = menorFilho;
+  }
+}
+
+No poll(PriorityQueue *q) {
+  No menorItem = q->nos[0];
+  q->nos[0] = q->nos[q->tamanho - 1];
+  q->tamanho--;
+  heapifyDown(q);
+  return menorItem;
+}
+
+void add(No item, PriorityQueue *q) {
+  q->nos[q->tamanho] = item;
+  q->tamanho++;
+  heapifyUp(q);
+}
+
+void freePriorityQueue(PriorityQueue *q) {
+  free(q->nos);
+  free(q);
+}
+
+PriorityQueue* criaFila(int capacity) {
   PriorityQueue *pq = (PriorityQueue *)malloc(sizeof(PriorityQueue));
-  pq->nodes = (PQNode *)malloc(sizeof(PQNode) * capacity);
-  pq->size = 0;
-  pq->capacity = capacity;
+  pq->nos = (No *)malloc(sizeof(No) * capacity);
+  pq->tamanho = 0;
+  pq->capacidade = capacity;
   return pq;
 }
 
-void swap(PQNode *a, PQNode *b) {
-  PQNode temp = *a;
-  *a = *b;
-  *b = temp;
-}
-
-void heapifyUp(PriorityQueue *pq, int index) {
-  while (index > 0) {
-    int parent = (index - 1) / 2;
-    if (pq->nodes[index].priority >= pq->nodes[parent].priority) {
-      break;
-    }
-    swap(&pq->nodes[index], &pq->nodes[parent]);
-    index = parent;
-  }
-}
-
-void heapifyDown(PriorityQueue *pq, int index) {
-  int left, right, smallest;
-  while (1) {
-    left = 2 * index + 1;
-    right = 2 * index + 2;
-    smallest = index;
-
-    if (left < pq->size && pq->nodes[left].priority < pq->nodes[smallest].priority) {
-      smallest = left;
-    }
-    if (right < pq->size && pq->nodes[right].priority < pq->nodes[smallest].priority) {
-      smallest = right;
-    }
-    if (smallest == index) {
-      break;
-    }
-    swap(&pq->nodes[index], &pq->nodes[smallest]);
-    index = smallest;
-  }
-}
-
-void insert(PriorityQueue *pq, int vertex, int priority) {
-  if (pq->size == pq->capacity) {
-    pq->capacity *= 2;
-    pq->nodes = (PQNode *)realloc(pq->nodes, sizeof(PQNode) * pq->capacity);
-  }
-  pq->nodes[pq->size].vertex = vertex;
-  pq->nodes[pq->size].priority = priority;
-  heapifyUp(pq, pq->size);
-  pq->size++;
-}
-
-PQNode extractMin(PriorityQueue *pq) {
-  PQNode minNode = pq->nodes[0];
-  pq->nodes[0] = pq->nodes[pq->size - 1];
-  pq->size--;
-  heapifyDown(pq, 0);
-  return minNode;
-}
-
-int isEmpty(PriorityQueue *pq) {
-  return pq->size == 0;
-}
-
-void freePriorityQueue(PriorityQueue *pq) {
-  free(pq->nodes);
-  free(pq);
-}
-
-
-void dijkstra(Grafo G, int *visitados,int *dist,int *pred,int *detonacao){
-  /*Código desenvolvido na matéria de maratona de programação, modificação foi no if da linha 119*/
-  for(int i = 0; i < G->n; i++) {
-    visitados[i] = 0; // visitou nenhum
-    dist[i] = INT_MAX; // dist infinita
-    pred[i] = INT_MAX; // Caso não chega no vertice em nenhum momento
+void dijkstra(Grafo G, int *visitados, int *dist, int *pred, int *detonacao) {
+  for (int i = 0; i < G->n; i++) {
+    visitados[i] = 0;
+    dist[i] = INT_MAX;
+    pred[i] = INT_MAX;
   }
 
   dist[0] = 0;
-  PriorityQueue *q = createPriorityQueue(G->n);
+  PriorityQueue *q = criaFila(G->n);
 
-  insert(q,0,0); // Inseriu o primeiro elemento na PQ
-  //Identificador e peso(tempo) da aresta
+  No novoNo;
+  novoNo.id = 0;
+  novoNo.prioridade = 0;
 
-  while (!isEmpty(q)){
-    int tempo = 0;
-    PQNode minNode = extractMin(q);
-    int u = minNode.vertex;
-    
-    if(visitados[u] != 0) continue;
-    visitados[u] = 1; // Marca o elemento como visitado
+  add(novoNo, q);
 
-    //Ver quais os elementos que ele está ligado
-    for(Aresta * a = G->V[u].arestas; a != NULL; a = a->prox){
-      tempo = dist[u];
+  while (q->tamanho) {
+    No minNode = poll(q);
+    int u = minNode.id;
+
+    if (visitados[u]) continue;
+    visitados[u] = 1;
+
+    for (Aresta *a = G->V[u].arestas; a != NULL; a = a->prox) {
       int b = a->v;
       int w = a->tamanho;
-      if((dist[b] > dist[u] + w) && ((tempo + w) < detonacao[b])){
+
+      if ((dist[b] > dist[u] + w) && (dist[u] + w < detonacao[b])) {
         dist[b] = dist[u] + w;
         pred[b] = u;
-        insert(q,b,dist[b]);
+
+        No novoNo;
+        novoNo.id = b;
+        novoNo.prioridade = dist[b];
+        add(novoNo, q);
       }
     }
   }
+
   freePriorityQueue(q);
 }
+
 
 int* descobreCam(Grafo G, int *pred,int i){
   int* caminho = (int*)malloc(G->n * sizeof(int));
@@ -212,9 +215,7 @@ void quest_explosiva(Grafo G, int s, int * detonacao, int * baus, int *caminho, 
       }
     }
   }
-  free(visitados);
-  free(dist);
-  free(pred);
+
   return;
 }
 
